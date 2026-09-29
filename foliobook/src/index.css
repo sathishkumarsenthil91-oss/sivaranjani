@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --manga-panel-border: #141416;
+  }
+}
+
+/* Custom Comic Fonts */
+.font-manga-title {
+  font-family: 'Anton', 'Orbitron', sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.font-manga-tech {
+  font-family: 'Orbitron', monospace, sans-serif;
+}
+
+.font-dialogue {
+  font-family: 'Comic Neue', 'Plus Jakarta Sans', sans-serif;
+  line-height: 1.35;
+}
+
+.font-narration {
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.02em;
+}
+
+/* Manga screentone / halftone pattern */
+.manga-halftone {
+  background-image: radial-gradient(#202026 1px, transparent 1px);
+  background-size: 6px 6px;
+}
+
+.manga-halftone-light {
+  background-image: radial-gradient(#d4d4d8 1.2px, transparent 1.2px);
+  background-size: 5px 5px;
+}
+
+/* Speed lines effect */
+.manga-speed-lines {
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0px,
+    rgba(255, 255, 255, 0.03) 2px,
+    transparent 2px,
+    transparent 12px
+  );
+}
+
+.manga-radial-lines {
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 255, 255, 0.07) 0deg 2deg,
+    transparent 2deg 15deg
+  );
+}
+
+/* Comic Panel Borders */
+.comic-panel {
+  border: 3px solid #141418;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+  background-color: #0d0d11;
+}
+
+.comic-panel-bw {
+  border: 3px solid #18181b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+  background-color: #ffffff;
+  color: #121214;
+}
+
+/* Speech Bubble Styles */
+.speech-bubble {
+  background: #ffffff;
+  color: #09090b;
+  border: 2.5px solid #18181b;
+  border-radius: 18px;
+  padding: 8px 14px;
+  font-weight: 700;
+  box-shadow: 2px 3px 0px rgba(0, 0, 0, 0.3);
+  position: relative;
+  display: inline-block;
+  max-width: 240px;
+}
+
+/* Bubble Tails */
+.speech-bubble-bottom-left::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 20px;
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 2px solid transparent;
+  border-top: 10px solid #ffffff;
+  filter: drop-shadow(0 2px 0 #18181b);
+}
+
+.speech-bubble-bottom-right::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  right: 20px;
+  width: 0;
+  height: 0;
+  border-right: 10px solid transparent;
+  border-left: 2px solid transparent;
+  border-top: 10px solid #ffffff;
+  filter: drop-shadow(0 2px 0 #18181b);
+}
+
+/* Shout / Action Bubble */
+.shout-bubble {
+  background: #ffffff;
+  color: #09090b;
+  border: 3px solid #18181b;
+  clip-path: polygon(
+    0% 20%, 5% 0%, 20% 5%, 50% 0%, 80% 5%, 95% 0%, 100% 20%,
+    95% 50%, 100% 80%, 85% 95%, 60% 90%, 40% 100%, 15% 90%, 0% 75%, 5% 45%
+  );
+  padding: 12px 18px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+/* Narration Box */
+.narration-box {
+  background: rgba(18, 18, 22, 0.95);
+  border-left: 4px solid #f59e0b;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f4f4f5;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+}
+
+.narration-box-parchment {
+  background: #fbf5e5;
+  border: 2px solid #27272a;
+  color: #18181b;
+  box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.4);
+}
+
+/* Sound Effect text */
+.sfx-text {
+  font-family: 'Anton', impact, sans-serif;
+  text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0 4px 10px rgba(0,0,0,0.8);
+  letter-spacing: 0.05em;
+  transform: rotate(-3deg);
+  display: inline-block;
+  user-select: none;
+}
+
+/* Rotating Sun Wheel Animation */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 24s linear infinite;
+}
+
+.animate-spin-reverse-slow {
+  animation: spin-slow 36s linear infinite reverse;
+}
+
+/* Hide scrollbar for clean comic view */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

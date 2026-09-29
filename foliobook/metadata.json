@@ -1,0 +1,6 @@
+{
+  "name": "SUN WHEELS — Manga & Comic Reader",
+  "description": "A cinematic manga and webtoon reading website for SUN WHEELS, a sci-fi mystery time-loop epic by Ilan in the lost ancient city of Aathirai.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
