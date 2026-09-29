@@ -49,12 +49,23 @@ Models were compared on creative writing quality, response speed, and ease of in
 ## Project Structure
 
 ```
-sivaranjani/
-├── app.py / route.py     # Flask routes
-├── templates/            # HTML templates
-├── static/               # CSS, JS, images
-├── requirements.txt      # Dependencies
-└── README.md
+foliobook/
+├── src/
+│   ├── assets/images/       # Bundled illustrations and covers
+│   ├── components/          # Reader, home sections, controls, and modals
+│   ├── data/
+│   │   ├── mangaData.ts     # Sun Wheels chapters, pages, and characters
+│   │   └── storyData.ts     # Additional book data
+│   ├── types/              # Story and reader type definitions
+│   ├── utils/audio.ts      # Sound-effect generation
+│   ├── App.tsx             # Main reader flow and saved state
+│   ├── index.css           # Global styles
+│   └── main.tsx            # Application entry point
+├── .env.example
+├── index.html
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
 ```
 
 ## Setup and Installation
@@ -85,7 +96,7 @@ set GEMINI_API_KEY=your_api_key_here
 python app.py
 ```
 
-Open `http://127.0.0.1:5000` in your browser.
+Open `` in your browser.
 
 ## Development Plan (Epics)
 
