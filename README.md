@@ -97,8 +97,11 @@ Open `http://127.0.0.1:5000` in your browser.
 
 ## Team
 
-- Siva Ranjani (Team Lead)
-- Nancy Evanjalin
+- Sivaranjani.l (Team Lead)
+- Nancy Evanjalin.s
+- pavithra.v
+- sathish kumar.s
+- giri.s
 
 ## License
 
