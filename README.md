@@ -1,119 +1,35 @@
-# ComicCraft - AI Comic Story Creator using Gemini Models
+# Sun Wheels — Manga reader
 
-ComicCraft is a web application that turns a short story idea into a comic. The user enters a story prompt, and the system uses Google's Gemini models to write the story, split it into panels with dialogues, and generate matching visuals.
+A responsive comic-book website for the existing Sun Wheels story. All ten chapters, character profiles, and bundled illustrations are preserved.
 
-## Project Overview
+## Run locally
 
-Creating a comic normally needs writing, storyboarding, and drawing skills. ComicCraft automates this with generative AI:
+Requires Node.js 22.12+ or 24+.
 
-- Takes a story idea or prompt from the user
-- Generates a structured story with scenes, narration, and dialogues
-- Creates image prompts for each comic panel
-- Displays the panels in a clean comic-style layout in the browser
-
-## Features
-
-- Story generation from custom prompts
-- Panel-by-panel scene and dialogue creation
-- AI-generated visuals for each panel
-- Dynamic frontend templates for the comic layout
-- Simple Flask backend with API routes
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Language | Javascript |
-| Backend | Flask (`route.py`) |
-| AI Models | Google Gemini (Flash / Pro) |
-| Image Generation | Hugging Face Diffusers (Stable Diffusion) |
-| Frontend | HTML, CSS, JavaScript |
-
-## Model Selection
-
-- **Gemini Flash**: fast responses, good for quick outputs
-- **Gemini Pro**: better for detailed, creative text generation
-- **Stable Diffusion (Hugging Face Diffusers)**: high-quality images from prompts
-
-Models were compared on creative writing quality, response speed, and ease of integration.
-
-## Project Workflow
-
-1. User enters a story idea in the web interface
-2. Flask backend receives the request through the API route
-3. Gemini model generates the story, scenes, and dialogues
-4. Image prompts are created for each panel
-5. Images are generated and combined with the text
-6. The frontend displays the final comic
-
-## Project Structure
-
-```
-foliobook/
-├── src/
-│   ├── assets/images/       # Bundled illustrations and covers
-│   ├── components/          # Reader, home sections, controls, and modals
-│   ├── data/
-│   │   ├── mangaData.ts     # Sun Wheels chapters, pages, and characters
-│   │   └── storyData.ts     # Additional book data
-│   ├── types/              # Story and reader type definitions
-│   ├── utils/audio.ts      # Sound-effect generation
-│   ├── App.tsx             # Main reader flow and saved state
-│   ├── index.css           # Global styles
-│   └── main.tsx            # Application entry point
-├── .env.example
-├── index.html
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+```sh
+cd foliobook
+npm ci
+npm run dev
 ```
 
-## Setup and Installation
+Open http://localhost:3000. Run `npm run lint` for the TypeScript check and `npm run build` for a production build. Deploy the `foliobook` directory with Vite; output directory: `dist`.
 
-**Prerequisites**
-- Python 3.9 or above
-- A Google Gemini API key
-- Git
+## Reading
 
-**Steps**
+- Start reading from the cover or open a chapter from the shelf.
+- Swipe left/right on touchscreens, use the Previous/Next buttons, or press the arrow keys to turn pages. Vertical scrolling stays native so long pages remain readable.
+- Page turns cross chapter boundaries; the final page disables Next.
+- Scroll mode displays the current chapter continuously and tracks the visible page.
+- Use the page slider or chapter selector to jump directly.
+- Bookmark pages and return through the Bookmarked shelf. Reading progress and bookmarks are saved on this browser.
+- Switch between color and black-and-white artwork, or light and dark paper.
+- Zoom a panel using its magnifier. Escape closes zoom or returns to the library.
+- Reduced-motion preferences disable page-turn animation.
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/sathishkumarsenthil91-oss/sivaranjani.git
-cd sivaranjani
-
-# 2. Create a virtual environment
-python -m venv venv
-venv\Scripts\activate        # Windows
-
-# 3. Install dependencies
-pip install -r requirements.txt
-
-# 4. Add your API key
-set GEMINI_API_KEY=your_api_key_here
-
-# 5. Run the app
-python app.py
-```
-
-Open `https://foliobook-lyart.vercel.app/` in your browser.
-
-## Development Plan (Epics)
-
-1. Model Selection and Architecture
-2. Core Functionalities Development
-3. route.py Development
-4. Frontend Development
-5. Testing and Deployment
+The source contains 37 actual pages across ten chapters. Counts are derived from the page data rather than the older chapter metadata.
 
 ## Team
 
-- Sivaranjani.l (Team Lead)
-- Nancy Evanjalin.s
-- pavithra.v
-- sathish kumar.s
-- giri.s
-
-## License
+Sivaranjani.l, Nancy Evanjalin.s, pavithra.v, sathish kumar.s, and giri.s.
 
 This project is for learning purposes as part of the Google Cloud Generative AI Engineer program on SkillWallet.

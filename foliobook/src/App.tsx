@@ -1,525 +1,798 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { MANGA_STORY, CHAPTER_LIST, ALL_CHAPTERS_PAGES, CHARACTERS } from './data/mangaData';
-import { MangaHeader } from './components/MangaHeader';
-import { LandingHero } from './components/LandingHero';
-import { ChapterLibrary } from './components/ChapterLibrary';
-import { CharacterSection } from './components/CharacterSection';
-import { LoreSection } from './components/LoreSection';
-import { MangaPage } from './components/MangaPage';
-import { WebtoonScrollReader } from './components/WebtoonScrollReader';
-import { MangaReaderControls } from './components/MangaReaderControls';
-import { MangaLoadingScreen } from './components/MangaLoadingScreen';
-import { ZoomModal } from './components/ZoomModal';
-import { ReadingMode, ReaderBackground } from './types/manga';
-import { bookAudio } from './utils/audio';
-import { ChevronLeft, ChevronRight, Home, ArrowLeft } from 'lucide-react';
-
-const STORAGE_KEYS = {
-  CHAPTER: 'sunwheels_chapter_v2',
-  PAGE: 'sunwheels_page_v2',
-  MODE: 'sunwheels_mode_v2',
-  BG: 'sunwheels_bg_v2',
-  BOOKMARKS: 'sunwheels_bookmarks_v2',
-  SOUND: 'sunwheels_sound_v2',
-};
-
-export default function App() {
-  const totalChapters = CHAPTER_LIST.length;
-
-  // View state: 'home' | 'reader'
-  const [currentView, setCurrentView] = useState<'home' | 'reader'>('home');
-  const [currentChapter, setCurrentChapter] = useState<number>(1);
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [readingMode, setReadingMode] = useState<ReadingMode>('page');
-  const [background, setBackground] = useState<ReaderBackground>('dark');
-  const [bookmarks, setBookmarks] = useState<string[]>([]); // Format "ch_page"
-  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
-
-  // Reader HUD visibility & animations
-  const [isControlsVisible, setIsControlsVisible] = useState<boolean>(true);
-  const [isLoadingScreen, setIsLoadingScreen] = useState<boolean>(false);
-  const [loadingChapterTitle, setLoadingChapterTitle] = useState<string>('CHAPTER 1: THE ECHO VAULT');
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-
-  // Zoom modal state
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-  const [zoomedCaption, setZoomedCaption] = useState<string | undefined>(undefined);
-
-  // Touch gesture tracking for horizontal swipe in page mode
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const touchStartTime = useRef<number>(0);
-
-  // Wheel debounce
-  const lastWheelTime = useRef<number>(0);
-
-  // Current chapter pages
-  const chapterPages = ALL_CHAPTERS_PAGES[currentChapter] || ALL_CHAPTERS_PAGES[1];
-  const totalPagesInChapter = chapterPages.length;
-
-  // 1. Load initial persistent state
-  useEffect(() => {
-    try {
-      const savedCh = localStorage.getItem(STORAGE_KEYS.CHAPTER);
-      if (savedCh) {
-        const parsedCh = parseInt(savedCh, 10);
-        if (!isNaN(parsedCh) && parsedCh >= 1 && parsedCh <= totalChapters) {
-          setCurrentChapter(parsedCh);
-        }
-      }
-
-      const savedPage = localStorage.getItem(STORAGE_KEYS.PAGE);
-      if (savedPage) {
-        const parsedPage = parseInt(savedPage, 10);
-        if (!isNaN(parsedPage) && parsedPage >= 1) {
-          setCurrentPage(parsedPage);
-        }
-      }
-
-      const savedMode = localStorage.getItem(STORAGE_KEYS.MODE) as ReadingMode;
-      if (savedMode === 'page' || savedMode === 'webtoon') {
-        setReadingMode(savedMode);
-      }
-
-      const savedBg = localStorage.getItem(STORAGE_KEYS.BG) as ReaderBackground;
-      if (savedBg) setBackground(savedBg);
-
-      const savedBm = localStorage.getItem(STORAGE_KEYS.BOOKMARKS);
-      if (savedBm) setBookmarks(JSON.parse(savedBm));
-
-      const savedSound = localStorage.getItem(STORAGE_KEYS.SOUND);
-      if (savedSound !== null) setSoundEnabled(savedSound === 'true');
-    } catch {}
-  }, [totalChapters]);
-
-  // 2. Save progress
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.CHAPTER, currentChapter.toString());
-      localStorage.setItem(STORAGE_KEYS.PAGE, currentPage.toString());
-    } catch {}
-  }, [currentChapter, currentPage]);
-
-  // 3. Save settings
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.MODE, readingMode);
-      localStorage.setItem(STORAGE_KEYS.BG, background);
-      localStorage.setItem(STORAGE_KEYS.BOOKMARKS, JSON.stringify(bookmarks));
-      localStorage.setItem(STORAGE_KEYS.SOUND, soundEnabled.toString());
-    } catch {}
-  }, [readingMode, background, bookmarks, soundEnabled]);
-
-  // Fullscreen tracking
-  useEffect(() => {
-    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', handleFsChange);
-    return () => document.removeEventListener('fullscreenchange', handleFsChange);
-  }, []);
-
-  const toggleFullscreen = async () => {
-    try {
-      if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-      } else {
-        await document.exitFullscreen();
-      }
-    } catch {}
-  };
-
-  // Next Chapter navigation
-  const handleNextChapter = useCallback(() => {
-    if (currentChapter < totalChapters) {
-      const nextCh = currentChapter + 1;
-      const chMeta = CHAPTER_LIST.find((c) => c.chapterNumber === nextCh);
-      setLoadingChapterTitle(`CHAPTER ${nextCh}: ${chMeta?.title || ''}`);
-      setIsLoadingScreen(true);
-      setCurrentChapter(nextCh);
-      setCurrentPage(1);
-      if (soundEnabled) bookAudio.playSunWheelPulse();
-    }
-  }, [currentChapter, totalChapters, soundEnabled]);
-
-  // Previous Chapter navigation
-  const handlePrevChapter = useCallback(() => {
-    if (currentChapter > 1) {
-      const prevCh = currentChapter - 1;
-      const chMeta = CHAPTER_LIST.find((c) => c.chapterNumber === prevCh);
-      setLoadingChapterTitle(`CHAPTER ${prevCh}: ${chMeta?.title || ''}`);
-      setIsLoadingScreen(true);
-      setCurrentChapter(prevCh);
-      setCurrentPage(1);
-      if (soundEnabled) bookAudio.playSunWheelPulse();
-    }
-  }, [currentChapter, soundEnabled]);
-
-  // Page turns with audio
-  const handleNextPage = useCallback(() => {
-    if (currentPage >= totalPagesInChapter) {
-      // If at end of chapter, prompt next chapter
-      if (currentChapter < totalChapters) {
-        handleNextChapter();
-      }
-      return;
-    }
-    if (soundEnabled) {
-      bookAudio.playPageTurn(true);
-    }
-    setCurrentPage((p) => p + 1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentPage, totalPagesInChapter, currentChapter, totalChapters, handleNextChapter, soundEnabled]);
-
-  const handlePrevPage = useCallback(() => {
-    if (currentPage <= 1) return;
-    if (soundEnabled) bookAudio.playPageTurn(false);
-    setCurrentPage((p) => p - 1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentPage, soundEnabled]);
-
-  const handleScrubPage = useCallback((targetPage: number) => {
-    if (targetPage >= 1 && targetPage <= totalPagesInChapter) {
-      if (soundEnabled) bookAudio.playPageTurn(targetPage > currentPage);
-      setCurrentPage(targetPage);
-    }
-  }, [currentPage, totalPagesInChapter, soundEnabled]);
-
-  // Start Reading Flow (triggers animated loading screen)
-  const handleStartReading = (chapterNum: number = 1, pageNum: number = 1) => {
-    const chMeta = CHAPTER_LIST.find((c) => c.chapterNumber === chapterNum);
-    setLoadingChapterTitle(`CHAPTER ${chapterNum}: ${chMeta?.title || ''}`);
-    setIsLoadingScreen(true);
-    if (soundEnabled) bookAudio.playSunWheelPulse();
-    setCurrentChapter(chapterNum);
-    setCurrentPage(pageNum);
-  };
-
-  const handleFinishLoading = () => {
-    setIsLoadingScreen(false);
-    setCurrentView('reader');
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  };
-
-  // Bookmark toggle
-  const bookmarkKey = `${currentChapter}_${currentPage}`;
-  const isCurrentBookmarked = bookmarks.includes(bookmarkKey);
-
-  const handleToggleBookmark = useCallback(() => {
-    setBookmarks((prev) => {
-      const exists = prev.includes(bookmarkKey);
-      if (exists) {
-        return prev.filter((k) => k !== bookmarkKey);
-      } else {
-        if (soundEnabled) bookAudio.playBookmarkChime();
-        return [...prev, bookmarkKey];
-      }
-    });
-  }, [bookmarkKey, soundEnabled]);
-
-  // Listen to custom events from MangaPage
-  useEffect(() => {
-    const onNavHome = () => setCurrentView('home');
-    const onNavNext = () => handleNextChapter();
-
-    window.addEventListener('nav-home', onNavHome);
-    window.addEventListener('nav-next-chapter', onNavNext);
-
-    return () => {
-      window.removeEventListener('nav-home', onNavHome);
-      window.removeEventListener('nav-next-chapter', onNavNext);
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Bookmark,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  Moon,
+  Sun,
+} from "lucide-react";
+import {
+  ALL_CHAPTERS_PAGES,
+  CHAPTER_LIST,
+  CHARACTERS,
+  MANGA_STORY,
+} from "./data/mangaData";
+import { MangaPage } from "./components/MangaPage";
+import { ZoomModal } from "./components/ZoomModal";
+const STORAGE = "sunwheels_reader_v3";
+const number = (n: number) => String(n).padStart(2, "0");
+function loadSaved() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE) || "null");
+    const ch = Number(
+      s?.chapter ?? localStorage.getItem("sunwheels_chapter_v2") ?? 1,
+    );
+    const p = Number(s?.page ?? localStorage.getItem("sunwheels_page_v2") ?? 1);
+    const chapter = Number.isInteger(ch) && ALL_CHAPTERS_PAGES[ch] ? ch : 1;
+    return {
+      chapter,
+      page: Number.isInteger(p)
+        ? Math.max(1, Math.min(p, ALL_CHAPTERS_PAGES[chapter].length))
+        : 1,
+      bookmarks: Array.isArray(s?.bookmarks)
+        ? (s.bookmarks.filter(
+            (v: unknown) => typeof v === "string" && /^\d+_\d+$/.test(v),
+          ) as string[])
+        : [],
+      started: Boolean(s?.started),
+      dark: Boolean(s?.dark),
     };
-  }, [handleNextChapter]);
-
-  // Keyboard navigation
+  } catch {
+    return {
+      chapter: 1,
+      page: 1,
+      bookmarks: [] as string[],
+      started: false,
+      dark: false,
+    };
+  }
+}
+export default function App() {
+  const [saved] = useState(loadSaved);
+  const [progress, setProgress] = useState({
+    chapter: saved.chapter,
+    page: saved.page,
+  });
+  const [started, setStarted] = useState(saved.started);
+  const [bookmarks, setBookmarks] = useState<string[]>(saved.bookmarks);
+  const [dark, setDark] = useState(saved.dark);
+  const [reader, setReader] = useState(false);
+  const [scrollMode, setScrollMode] = useState(false);
+  const [bw, setBw] = useState(false);
+  const [direction, setDirection] = useState(1);
+  const [turningPage, setTurningPage] = useState<{
+    chapter: number;
+    page: number;
+    direction: number;
+  } | null>(null);
+  const [zoom, setZoom] = useState<{ src: string; caption?: string } | null>(
+    null,
+  );
+  const [character, setCharacter] = useState(CHARACTERS[0]);
+  const [savedOnly, setSavedOnly] = useState(false);
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const { chapter, page } = progress;
+  const pages = ALL_CHAPTERS_PAGES[chapter];
+  const meta = CHAPTER_LIST.find((c) => c.chapterNumber === chapter)!;
+  const key = `${chapter}_${page}`;
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
-
-      if (e.key === 'Escape') {
-        if (zoomedImage) setZoomedImage(null);
-        else if (currentView === 'reader') setCurrentView('home');
+    try {
+      localStorage.setItem(
+        STORAGE,
+        JSON.stringify({ ...progress, bookmarks, started, dark }),
+      );
+    } catch {}
+  }, [progress, bookmarks, started, dark]);
+  const home = useCallback(() => {
+    setTurningPage(null);
+    setReader(false);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
+  const open = useCallback((ch: number, p = 1) => {
+    setTurningPage(null);
+    setProgress({
+      chapter: ch,
+      page: Math.max(1, Math.min(p, ALL_CHAPTERS_PAGES[ch].length)),
+    });
+    setReader(true);
+    setStarted(true);
+    setScrollMode(false);
+    setDirection(1);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, []);
+  const turn = useCallback(
+    (step: number) => {
+      const next = (() => {
+        const current = progress;
+        const count = ALL_CHAPTERS_PAGES[current.chapter].length;
+        if (current.page + step < 1)
+          return current.chapter > 1
+            ? {
+                chapter: current.chapter - 1,
+                page: ALL_CHAPTERS_PAGES[current.chapter - 1].length,
+              }
+            : current;
+        if (current.page + step > count)
+          return current.chapter < CHAPTER_LIST.length
+            ? { chapter: current.chapter + 1, page: 1 }
+            : current;
+        return { ...current, page: current.page + step };
+      })();
+      if (next === progress) return;
+      setTurningPage({ ...progress, direction: step });
+      setDirection(step);
+      setProgress(next);
+      window.scrollTo({ top: 0, behavior: "instant" });
+    },
+    [progress],
+  );
+  useEffect(() => {
+    if (!turningPage) return;
+    const timeout = window.setTimeout(() => setTurningPage(null), 700);
+    return () => window.clearTimeout(timeout);
+  }, [turningPage]);
+  const bookmark = useCallback(
+    () =>
+      setBookmarks((items) =>
+        items.includes(key) ? items.filter((v) => v !== key) : [...items, key],
+      ),
+    [key],
+  );
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (zoom) setZoom(null);
+        else if (reader) home();
         return;
       }
-
-      if (currentView !== 'reader') return;
-
-      if (readingMode === 'page') {
-        if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
-          e.preventDefault();
-          handleNextPage();
-        } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-          e.preventDefault();
-          handlePrevPage();
-        }
+      if (
+        !reader ||
+        zoom ||
+        ["INPUT", "SELECT", "TEXTAREA"].includes(
+          (e.target as HTMLElement).tagName,
+        )
+      )
+        return;
+      if (e.key === " " && (e.target as HTMLElement).closest("button,a"))
+        return;
+      if (
+        !scrollMode &&
+        ["ArrowRight", "PageDown", " ", "ArrowLeft", "PageUp"].includes(e.key)
+      ) {
+        e.preventDefault();
+        turn(["ArrowLeft", "PageUp"].includes(e.key) ? -1 : 1);
       }
-
-      if (e.key === 'f' || e.key === 'F') {
-        toggleFullscreen();
-      } else if (e.key === 'b' || e.key === 'B') {
-        handleToggleBookmark();
-      } else if (e.key === 'm' || e.key === 'M') {
-        setReadingMode((m) => (m === 'page' ? 'webtoon' : 'page'));
-      }
+      if (e.key.toLowerCase() === "b") bookmark();
     };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentView, readingMode, zoomedImage, handleNextPage, handlePrevPage, handleToggleBookmark]);
-
-  // Mouse wheel paging in page mode
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
-      if (currentView !== 'reader' || readingMode !== 'page') return;
-      const now = Date.now();
-      if (now - lastWheelTime.current < 600) return;
-
-      if (Math.abs(e.deltaY) > 40) {
-        if (e.deltaY > 0) {
-          lastWheelTime.current = now;
-          handleNextPage();
-        } else if (e.deltaY < 0) {
-          lastWheelTime.current = now;
-          handlePrevPage();
-        }
-      }
-    },
-    [currentView, readingMode, handleNextPage, handlePrevPage]
-  );
-
-  // Touch gesture handlers for mobile
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    touchStartTime.current = Date.now();
+    const next = () => {
+      if (chapter < CHAPTER_LIST.length) open(chapter + 1);
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("nav-home", home);
+    window.addEventListener("nav-next-chapter", next);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("nav-home", home);
+      window.removeEventListener("nav-next-chapter", next);
+    };
+  }, [reader, zoom, scrollMode, home, turn, bookmark, chapter, open]);
+  useEffect(() => {
+    if (!reader || !scrollMode || !stage.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort(
+            (a, b) => a.boundingClientRect.top - b.boundingClientRect.top,
+          )[0];
+        if (visible)
+          setProgress((current) => ({
+            ...current,
+            page: Number((visible.target as HTMLElement).dataset.page),
+          }));
+      },
+      { rootMargin: "-10% 0px -65% 0px", threshold: 0 },
+    );
+    stage.current
+      .querySelectorAll("[data-page]")
+      .forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [reader, scrollMode, chapter]);
+  const changeMode = (scroll: boolean) => {
+    setTurningPage(null);
+    setScrollMode(scroll);
+    if (scroll)
+      requestAnimationFrame(() =>
+        document
+          .getElementById(`page-${page}`)
+          ?.scrollIntoView({ block: "start" }),
+      );
+    else window.scrollTo({ top: 0, behavior: "instant" });
   };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    const diffX = e.changedTouches[0].clientX - touchStartX.current;
-    const diffY = e.changedTouches[0].clientY - touchStartY.current;
-    const duration = Date.now() - touchStartTime.current;
-
-    // Tap center detection
-    if (Math.abs(diffX) < 12 && Math.abs(diffY) < 12 && duration < 250) {
-      setIsControlsVisible((v) => !v);
-      touchStartX.current = null;
-      touchStartY.current = null;
-      return;
-    }
-
-    // Horizontal swipe in Page Mode
-    if (readingMode === 'page') {
-      const isHorizontal = Math.abs(diffX) > Math.abs(diffY) * 1.3;
-      if (isHorizontal && (Math.abs(diffX) > 45 || (duration < 250 && Math.abs(diffX) > 25))) {
-        if (diffX < 0) {
-          handleNextPage();
-        } else {
-          handlePrevPage();
-        }
-      }
-    }
-
-    touchStartX.current = null;
-    touchStartY.current = null;
-  };
-
-  const handleScrollToSection = (sectionId: string) => {
-    const el = document.getElementById(sectionId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const currentPageData = chapterPages.find((p) => p.pageNumber === currentPage) || chapterPages[0];
-
+  const zoomPanel = (src: string, caption?: string) =>
+    setZoom({ src, caption });
   return (
     <div
-      onWheel={handleWheel}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      className={`min-h-screen flex flex-col font-sans transition-colors duration-300 ${
-        background === 'oled'
-          ? 'bg-black text-stone-100'
-          : background === 'sepia'
-          ? 'bg-[#181412] text-[#e8d8c8]'
-          : background === 'light'
-          ? 'bg-[#f4f4f6] text-stone-900'
-          : 'bg-[#09090c] text-stone-100'
-      }`}
+      className={`manga-site ${reader ? "is-reading" : ""} ${dark ? "night-paper" : ""}`}
     >
-      {/* Loading Screen Overlay */}
-      {isLoadingScreen && (
-        <MangaLoadingScreen
-          onComplete={handleFinishLoading}
-          chapterTitle={loadingChapterTitle}
-        />
-      )}
-
-      {/* Header Navigation with Instant "Home" & Chapter selector */}
-      <MangaHeader
-        currentView={currentView}
-        currentChapter={currentChapter}
-        readingMode={readingMode}
-        onNavigateHome={() => setCurrentView('home')}
-        onOpenReader={(ch, page) => handleStartReading(ch || currentChapter, page || 1)}
-        onSelectChapter={(ch) => handleStartReading(ch, 1)}
-        onToggleReadingMode={() => setReadingMode((m) => (m === 'page' ? 'webtoon' : 'page'))}
-        onScrollToSection={handleScrollToSection}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={toggleFullscreen}
-        lastReadPage={currentPage}
-      />
-
-      {/* Main View Router */}
-      <main className="flex-1 flex flex-col justify-start">
-        {currentView === 'home' ? (
-          <div className="space-y-12">
-            <LandingHero
-              lastReadPage={currentPage}
-              totalPages={totalPagesInChapter}
-              onReadNow={() => handleStartReading(1, 1)}
-              onContinueReading={() => handleStartReading(currentChapter, currentPage)}
-              onScrollToSection={handleScrollToSection}
-            />
-
-            {/* Chapter Library showing all 10 chapters */}
-            <ChapterLibrary
-              chapters={CHAPTER_LIST}
-              currentChapter={currentChapter}
-              onSelectChapter={(chNum) => handleStartReading(chNum, 1)}
-            />
-
-            <CharacterSection />
-            <LoreSection />
-
-            {/* Footer */}
-            <footer className="py-12 border-t border-stone-800 text-center space-y-3 text-xs font-manga-tech text-stone-500">
-              <p className="uppercase tracking-widest text-amber-500 font-bold">
-                SUN WHEELS · SEASON 1: THE SEVEN WHEELS
-              </p>
-              <p className="text-stone-600">
-                All 10 chapters of Season 1 are available. Season 2: The Seven Cities coming next.
-              </p>
-            </footer>
-          </div>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <header className="comic-header">
+        <button
+          className="wordmark"
+          onClick={home}
+          aria-label="Sun Wheels home"
+        >
+          <span className="sun-mark">✳</span> SUN WHEELS{" "}
+          <small>ORIGINAL MANGA</small>
+        </button>
+        {reader ? (
+          <button className="text-button" onClick={home}>
+            <ArrowLeft size={16} /> Chapter library
+          </button>
         ) : (
-          /* Reader View */
-          <div className="flex-1 flex flex-col items-center justify-start p-2 sm:p-6 select-none relative">
-            
-            {/* Quick Home Floating Pill on Top Left of Reader */}
-            <div className="w-full max-w-4xl mx-auto flex items-center justify-between pb-3 px-2">
-              <button
-                onClick={() => setCurrentView('home')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-900/90 hover:bg-amber-500 text-stone-300 hover:text-black border border-stone-800 text-xs font-manga-tech font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 cursor-pointer"
-                title="Return to Home Page"
-              >
-                <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Return to Home</span>
-              </button>
-
-              <div className="text-xs font-manga-tech text-stone-400">
-                <span>CHAPTER {currentChapter} OF {totalChapters}</span>
+          <nav aria-label="Main navigation">
+            <a href="#chapters">Chapters</a>
+            <a href="#characters">Characters</a>
+            <a href="#world">The world</a>
+            <button
+              className="ink-button small"
+              onClick={() => open(chapter, page)}
+            >
+              Read manga <ArrowRight size={15} />
+            </button>
+          </nav>
+        )}
+      </header>
+      <main id="main-content">
+        {!reader ? (
+          <>
+            <section className="cover-section">
+              <div className="issue-line">
+                <span>VOL. 01 / THE SEVEN WHEELS</span>
+                <span>SCI-FI · MYSTERY · ADVENTURE</span>
+                <span>10 CHAPTERS. ONE EPIC STORY.</span>
               </div>
+              <div className="cover-grid">
+                <div className="cover-copy">
+                  <span className="eyebrow">
+                    <i /> SEASON ONE · COMPLETE
+                  </span>
+                  <h1>
+                    SUN
+                    <br />
+                    <em>WHEELS</em>
+                    <small>サン・ホイールズ</small>
+                  </h1>
+                  <p className="cover-tagline">
+                    A city caught in yesterday.
+                    <br />A boy who remembers tomorrow.
+                  </p>
+                  <p className="story-subtitle">{MANGA_STORY.subtitle}</p>
+                  <p className="cover-description">
+                    An ancient vault. An endless sunset. Step into Aathirai with
+                    Ilan and uncover the mystery of the seven Sun Wheels.
+                  </p>
+                  <div className="cover-buttons">
+                    <button className="ink-button" onClick={() => open(1)}>
+                      <BookOpen size={19} /> Start reading{" "}
+                      <ArrowRight size={19} />
+                    </button>
+                    {started ? (
+                      <button
+                        className="paper-button"
+                        onClick={() => open(chapter, page)}
+                      >
+                        Continue · Ch. {number(chapter)}
+                      </button>
+                    ) : (
+                      <a className="paper-button" href="#chapters">
+                        Explore chapters
+                      </a>
+                    )}
+                  </div>
+                  <p className="reader-note">
+                    <b>← →</b> Turn the page. Swipe on mobile. Get lost in the
+                    story.
+                  </p>
+                  <div className="cover-stat">
+                    <strong>10</strong>
+                    <span>CHAPTERS</span>
+                    <strong>
+                      {Object.values(ALL_CHAPTERS_PAGES).reduce(
+                        (n, p) => n + p.length,
+                        0,
+                      )}
+                    </strong>
+                    <span>PAGES TO EXPLORE</span>
+                    <b>FREE TO READ</b>
+                  </div>
+                </div>
+                <div className="cover-art">
+                  <div className="art-main">
+                    <img
+                      src={MANGA_STORY.coverImage}
+                      alt="Sun Wheels manga cover with Ilan and the ancient Sun Wheel"
+                    />
+                    <span className="art-caption">
+                      SOME MEMORIES WERE NEVER MEANT TO SURVIVE TIME.
+                    </span>
+                    <span className="volume-sticker">
+                      VOL.<b>01</b>
+                    </span>
+                  </div>
+                  <div className="art-strip">
+                    <div>
+                      <img
+                        src={CHAPTER_LIST[1].coverImage}
+                        alt="The ancient city of Aathirai"
+                      />
+                      <span>THE CITY THAT NEVER SLEEPS.</span>
+                    </div>
+                    <div>
+                      <img
+                        src={CHARACTERS[1].avatar}
+                        alt="Yazhini, the black stone carver"
+                      />
+                      <span>THE GIRL WHO REMEMBERS.</span>
+                    </div>
+                  </div>
+                  <div className="speech-sticker">
+                    The next page
+                    <br />
+                    changes everything.
+                  </div>
+                </div>
+              </div>
+            </section>
+            <div className="story-ribbon">
+              <span>ANCIENT SECRETS</span>
+              <span>✳</span>
+              <span>ENDLESS SUNSETS</span>
+              <span>✳</span>
+              <span>ONE CHANCE TO BREAK THE LOOP</span>
+              <span>✳</span>
+              <span>SUN WHEELS</span>
             </div>
-
-            {/* Desktop Left / Right Click Turn Zones in Page Mode */}
-            {readingMode === 'page' && (
-              <>
-                <button
-                  onClick={handlePrevPage}
-                  disabled={currentPage <= 1}
-                  aria-label="Previous Page"
-                  className={`hidden lg:flex fixed left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full items-center justify-center z-30 transition-all ${
-                    currentPage <= 1
-                      ? 'opacity-0 pointer-events-none'
-                      : 'bg-stone-900/80 hover:bg-amber-500 text-stone-300 hover:text-black shadow-xl border border-stone-800 hover:scale-110 active:scale-95'
-                  }`}
-                >
-                  <ChevronLeft className="w-6 h-6" />
+            <section id="chapters" className="section-wrap library-section">
+              <div className="section-heading">
+                <div>
+                  <span className="eyebrow">YOUR NEXT ADVENTURE</span>
+                  <h2>
+                    The chapter shelf<span>.</span>
+                  </h2>
+                </div>
+                <p>Read in order. Or pick up where you left off.</p>
+              </div>
+              <div className="shelf-toolbar">
+                <div role="group" aria-label="Chapter filters">
+                  <button
+                    className={!savedOnly ? "active" : ""}
+                    onClick={() => setSavedOnly(false)}
+                  >
+                    All chapters <span>10</span>
+                  </button>
+                  <button
+                    className={savedOnly ? "active" : ""}
+                    onClick={() => setSavedOnly(true)}
+                  >
+                    <Bookmark size={15} /> Bookmarked{" "}
+                    <span>{bookmarks.length}</span>
+                  </button>
+                </div>
+                <span>SEASON 01 — COMPLETE</span>
+              </div>
+              {savedOnly && !bookmarks.length ? (
+                <div className="empty-shelf">
+                  <Bookmark size={28} />
+                  <h3>Keep a page for later.</h3>
+                  <p>
+                    Tap the bookmark in the reader. Your saved pages will appear
+                    here.
+                  </p>
+                  <button
+                    className="paper-button"
+                    onClick={() => setSavedOnly(false)}
+                  >
+                    Browse all chapters
+                  </button>
+                </div>
+              ) : (
+                <div className="chapter-grid">
+                  {CHAPTER_LIST.filter(
+                    (c) =>
+                      !savedOnly ||
+                      bookmarks.some((k) =>
+                        k.startsWith(`${c.chapterNumber}_`),
+                      ),
+                  ).map((c) => (
+                    <article className="chapter-card" key={c.chapterNumber}>
+                      <button
+                        className="chapter-cover"
+                        onClick={() => open(c.chapterNumber)}
+                        aria-label={`Read chapter ${c.chapterNumber}: ${c.title}`}
+                      >
+                        <img src={c.coverImage} alt={c.title} loading="lazy" />
+                        <span className="chapter-number">
+                          {number(c.chapterNumber)}
+                        </span>
+                        <span className="chapter-pages">
+                          {ALL_CHAPTERS_PAGES[c.chapterNumber].length} PAGES
+                        </span>
+                        <span className="cover-read">
+                          <BookOpen size={22} /> Read chapter
+                        </span>
+                      </button>
+                      <div className="chapter-info">
+                        <span className="eyebrow">
+                          CHAPTER {number(c.chapterNumber)}
+                          {started && chapter === c.chapterNumber
+                            ? " · READING"
+                            : ""}
+                        </span>
+                        <h3>{c.title}</h3>
+                        <p>{c.subtitle}</p>
+                        <button
+                          className="chapter-link"
+                          onClick={() =>
+                            open(
+                              c.chapterNumber,
+                              started && chapter === c.chapterNumber ? page : 1,
+                            )
+                          }
+                        >
+                          {started && chapter === c.chapterNumber
+                            ? `Continue · Page ${page}`
+                            : "Open chapter"}
+                          <ArrowRight size={17} />
+                        </button>
+                        {savedOnly && (
+                          <div className="saved-page-links">
+                            {bookmarks
+                              .filter((k) =>
+                                k.startsWith(`${c.chapterNumber}_`),
+                              )
+                              .map((k) => (
+                                <button
+                                  key={k}
+                                  onClick={() =>
+                                    open(
+                                      c.chapterNumber,
+                                      Number(k.split("_")[1]),
+                                    )
+                                  }
+                                >
+                                  Saved page {k.split("_")[1]}
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+            <section id="characters" className="cast-section">
+              <div className="section-wrap">
+                <div className="section-heading">
+                  <div>
+                    <span className="eyebrow">THE FACES INSIDE THE LOOP</span>
+                    <h2>
+                      Meet the cast<span>.</span>
+                    </h2>
+                  </div>
+                  <p>Everyone has a story. Everyone has a secret.</p>
+                </div>
+                <div className="cast-layout">
+                  <div
+                    className="cast-tabs"
+                    role="group"
+                    aria-label="Choose a character"
+                  >
+                    {CHARACTERS.map((c) => (
+                      <button
+                        key={c.id}
+                        className={character.id === c.id ? "selected" : ""}
+                        aria-pressed={character.id === c.id}
+                        onClick={() => setCharacter(c)}
+                      >
+                        <img src={c.avatar} alt="" loading="lazy" />
+                        <span>
+                          <b>{c.name}</b>
+                          <small>{c.role}</small>
+                        </span>
+                        <ArrowRight size={17} />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="cast-portrait">
+                    <img
+                      src={character.avatar}
+                      alt={character.name}
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="cast-description">
+                    <span className="eyebrow">{character.role}</span>
+                    <h3>{character.name}</h3>
+                    <p>{character.description}</p>
+                    <blockquote>{character.quote}</blockquote>
+                    <small>CHARACTER NOTES CONTAIN STORY SPOILERS</small>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section id="world" className="world-section section-wrap">
+              <div className="world-art">
+                <img
+                  src={CHAPTER_LIST[1].coverImage}
+                  alt="Aathirai at its eternal sunset"
+                  loading="lazy"
+                />
+                <span className="art-caption">AATHIRAI / TIME UNKNOWN</span>
+              </div>
+              <div>
+                <span className="eyebrow">ENTER THE WORLD</span>
+                <h2>
+                  Yesterday never
+                  <br />
+                  ends here<span>.</span>
+                </h2>
+                <p>
+                  Under Vetri Nagar lies the Echo Vault, a machine that brings
+                  memories in stone to life. Beyond it, Aathirai waits in an
+                  eternal sunset. Every reset erases everyone's memory — except
+                  Ilan's.
+                </p>
+                <details>
+                  <summary>The Echo Vault</summary>
+                  <p>
+                    An ancient machine that reconstructs memories preserved in
+                    mineral stone, materializing a lost civilization.
+                  </p>
+                </details>
+                <details>
+                  <summary>The seven Sun Wheels</summary>
+                  <p>
+                    Seven ancient wheels govern Memory, Time, Energy, Life,
+                    Knowledge, Reality, and Origin.
+                  </p>
+                </details>
+                <button className="ink-button" onClick={() => open(1)}>
+                  Enter the story <ArrowRight size={18} />
                 </button>
-
-                <button
-                  onClick={handleNextPage}
-                  disabled={currentPage >= totalPagesInChapter && currentChapter >= totalChapters}
-                  aria-label="Next Page"
-                  className={`hidden lg:flex fixed right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full items-center justify-center z-30 transition-all ${
-                    currentPage >= totalPagesInChapter && currentChapter >= totalChapters
-                      ? 'opacity-0 pointer-events-none'
-                      : 'bg-stone-900/80 hover:bg-amber-500 text-stone-300 hover:text-black shadow-xl border border-stone-800 hover:scale-110 active:scale-95'
-                  }`}
+              </div>
+            </section>
+            <footer className="comic-footer">
+              <b>✳ SUN WHEELS</b>
+              <span>SEASON 01 · THE SEVEN WHEELS</span>
+              <a href="#main-content">Back to top ↑</a>
+              <p>Season 2: The Seven Cities · Coming next</p>
+            </footer>
+          </>
+        ) : (
+          <div className="reader-shell">
+            <div className="reader-topline">
+              <div>
+                <span className="eyebrow">CHAPTER {number(chapter)} / 10</span>
+                <h1>{meta.title}</h1>
+              </div>
+              <label className="chapter-select">
+                Jump to chapter
+                <select
+                  aria-label="Jump to chapter"
+                  value={chapter}
+                  onChange={(e) => open(Number(e.target.value))}
                 >
-                  <ChevronRight className="w-6 h-6" />
+                  {CHAPTER_LIST.map((c) => (
+                    <option key={c.chapterNumber} value={c.chapterNumber}>
+                      {number(c.chapterNumber)} · {c.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="reader-options">
+              <div className="mode-switch">
+                <button
+                  className={!scrollMode ? "active" : ""}
+                  aria-pressed={!scrollMode}
+                  onClick={() => changeMode(false)}
+                >
+                  Page turns
                 </button>
-              </>
-            )}
-
-            {/* Page Mode vs Webtoon Mode */}
-            {readingMode === 'page' ? (
-              <div className="w-full flex justify-center pb-20">
-                <MangaPage
-                  page={currentPageData}
-                  totalPages={totalPagesInChapter}
-                  onZoom={(src, cap) => {
-                    setZoomedImage(src);
-                    setZoomedCaption(cap);
+                <button
+                  className={scrollMode ? "active" : ""}
+                  aria-pressed={scrollMode}
+                  onClick={() => changeMode(true)}
+                >
+                  Scroll
+                </button>
+              </div>
+              <span className="reader-help">
+                {scrollMode
+                  ? "Scroll down to follow the story"
+                  : "Swipe or use ← → to turn pages"}
+              </span>
+              <button
+                className="text-button"
+                aria-pressed={bw}
+                onClick={() => setBw((v) => !v)}
+              >
+                {bw ? "Color artwork" : "Black & white"}
+              </button>
+              <button
+                className="icon-button"
+                aria-label={dark ? "Use light paper" : "Use dark paper"}
+                onClick={() => setDark((v) => !v)}
+              >
+                {dark ? <Sun size={18} /> : <Moon size={18} />}
+              </button>
+            </div>
+            <div
+              ref={stage}
+              className={`book-stage ${scrollMode ? "scroll-book" : ""}`}
+              onTouchStart={(e) => {
+                if (
+                  (e.target as HTMLElement).closest("button") ||
+                  e.touches.length !== 1
+                ) {
+                  touch.current = null;
+                  return;
+                }
+                touch.current = {
+                  x: e.touches[0].clientX,
+                  y: e.touches[0].clientY,
+                };
+              }}
+              onTouchEnd={(e) => {
+                const start = touch.current;
+                touch.current = null;
+                if (!start || zoom || scrollMode) return;
+                const dx = e.changedTouches[0].clientX - start.x,
+                  dy = e.changedTouches[0].clientY - start.y;
+                if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5)
+                  turn(dx < 0 ? 1 : -1);
+              }}
+            >
+              {scrollMode ? (
+                pages.map((p) => (
+                  <div
+                    className="book-leaf"
+                    data-page={p.pageNumber}
+                    id={`page-${p.pageNumber}`}
+                    key={`${chapter}-${p.pageNumber}`}
+                  >
+                    <MangaPage
+                      page={p}
+                      totalPages={pages.length}
+                      background={dark ? "dark" : "light"}
+                      isBlackAndWhiteMode={bw}
+                      onZoom={zoomPanel}
+                    />
+                  </div>
+                ))
+              ) : (
+                <div
+                  key={`${chapter}-${page}`}
+                  className={`book-leaf ${direction > 0 ? "turn-forward" : "turn-back"}`}
+                >
+                  <MangaPage
+                    page={pages[page - 1]}
+                    totalPages={pages.length}
+                    background={dark ? "dark" : "light"}
+                    isBlackAndWhiteMode={bw}
+                    onZoom={zoomPanel}
+                  />
+                </div>
+              )}
+              {!scrollMode && turningPage && (
+                <div
+                  key={`turn-${turningPage.chapter}-${turningPage.page}`}
+                  className={`book-turn-sheet ${turningPage.direction > 0 ? "sheet-forward" : "sheet-back"}`}
+                  aria-hidden="true"
+                  inert
+                  onAnimationEnd={() => setTurningPage(null)}
+                >
+                  <div className="book-leaf">
+                    <MangaPage
+                      page={
+                        ALL_CHAPTERS_PAGES[turningPage.chapter][
+                          turningPage.page - 1
+                        ]
+                      }
+                      totalPages={
+                        ALL_CHAPTERS_PAGES[turningPage.chapter].length
+                      }
+                      background={dark ? "dark" : "light"}
+                      isBlackAndWhiteMode={bw}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="reader-dock">
+              <button
+                className="dock-turn"
+                onClick={() => turn(-1)}
+                disabled={(chapter === 1 && page === 1) || scrollMode}
+                aria-label="Previous page"
+              >
+                <ChevronLeft size={22} />
+                <span>Previous</span>
+              </button>
+              <div className="dock-progress">
+                <span role="status" aria-live="polite">
+                  Ch. {number(chapter)}{" "}
+                  <b>
+                    Page {page} / {pages.length}
+                  </b>
+                </span>
+                <input
+                  aria-label="Go to page"
+                  type="range"
+                  min={1}
+                  max={pages.length}
+                  value={page}
+                  onChange={(e) => {
+                    const p = Number(e.target.value);
+                    setDirection(p > page ? 1 : -1);
+                    setProgress({ chapter, page: p });
+                    if (scrollMode)
+                      document
+                        .getElementById(`page-${p}`)
+                        ?.scrollIntoView({ block: "start" });
+                    else window.scrollTo({ top: 0, behavior: "instant" });
                   }}
-                  background={background}
                 />
               </div>
-            ) : (
-              <WebtoonScrollReader
-                pages={chapterPages}
-                currentChapter={currentChapter}
-                totalChapters={totalChapters}
-                onZoom={(src, cap) => {
-                  setZoomedImage(src);
-                  setZoomedCaption(cap);
-                }}
-                background={background}
-                onReturnToHome={() => setCurrentView('home')}
-                onNextChapter={handleNextChapter}
-                onPrevChapter={handlePrevChapter}
-                onPageVisible={(page) => setCurrentPage(page)}
-              />
-            )}
+              <button
+                className={`icon-button ${bookmarks.includes(key) ? "saved" : ""}`}
+                onClick={bookmark}
+                aria-label={
+                  bookmarks.includes(key) ? "Remove bookmark" : "Bookmark page"
+                }
+                aria-pressed={bookmarks.includes(key)}
+              >
+                <Bookmark
+                  size={20}
+                  fill={bookmarks.includes(key) ? "currentColor" : "none"}
+                />
+              </button>
+              <button
+                className="dock-turn next"
+                onClick={() => turn(1)}
+                disabled={
+                  (chapter === 10 && page === pages.length) || scrollMode
+                }
+                aria-label="Next page"
+              >
+                <span>
+                  {page === pages.length && chapter < 10
+                    ? "Next chapter"
+                    : "Next"}
+                </span>
+                <ChevronRight size={22} />
+              </button>
+            </div>
           </div>
         )}
       </main>
-
-      {/* Reader Controls HUD (Visible only while inside Reader) */}
-      {currentView === 'reader' && (
-        <MangaReaderControls
-          currentChapter={currentChapter}
-          totalChapters={totalChapters}
-          currentPage={currentPage}
-          totalPages={totalPagesInChapter}
-          readingMode={readingMode}
-          onToggleReadingMode={() => setReadingMode((m) => (m === 'page' ? 'webtoon' : 'page'))}
-          onPrevPage={handlePrevPage}
-          onNextPage={handleNextPage}
-          onPrevChapter={handlePrevChapter}
-          onNextChapter={handleNextChapter}
-          onScrubPage={handleScrubPage}
-          onReturnHome={() => setCurrentView('home')}
-          isBookmarked={isCurrentBookmarked}
-          onToggleBookmark={handleToggleBookmark}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={toggleFullscreen}
-          isVisible={isControlsVisible}
-          onToggleVisibility={() => setIsControlsVisible((v) => !v)}
-          soundEnabled={soundEnabled}
-          onToggleSound={() => setSoundEnabled((s) => !s)}
-          background={background}
-          onChangeBackground={(bg) => setBackground(bg)}
+      {zoom && (
+        <ZoomModal
+          key={zoom.src}
+          isOpen
+          imageSrc={zoom.src}
+          caption={zoom.caption}
+          onClose={() => setZoom(null)}
         />
       )}
-
-      {/* Zoom Modal */}
-      <ZoomModal
-        isOpen={!!zoomedImage}
-        onClose={() => setZoomedImage(null)}
-        imageSrc={zoomedImage}
-        caption={zoomedCaption}
-      />
     </div>
   );
 }
