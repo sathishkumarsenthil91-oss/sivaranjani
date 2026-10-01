@@ -23,7 +23,7 @@ Creating a comic normally needs writing, storyboarding, and drawing skills. Comi
 
 | Layer | Technology |
 |-------|------------|
-| Language | Python |
+| Language | Javascript |
 | Backend | Flask (`route.py`) |
 | AI Models | Google Gemini (Flash / Pro) |
 | Image Generation | Hugging Face Diffusers (Stable Diffusion) |
