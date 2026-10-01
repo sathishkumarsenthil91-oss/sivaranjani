@@ -12,7 +12,7 @@ npm ci
 npm run dev
 ```
 
-Open `https://foliobook-lyart.vercel.app/`Run `npm run lint` for the TypeScript check and `npm run build` for a production build. Deploy the `foliobook` directory with Vite; output directory: `dist`.
+Open https://foliobook-lyart.vercel.app/ Run `npm run lint` for the TypeScript check and `npm run build` for a production build. Deploy the `foliobook` directory with Vite; output directory: `dist`.
 
 ## Reading
 
@@ -30,6 +30,6 @@ The source contains 37 actual pages across ten chapters. Counts are derived from
 
 ## Team
 
-Sivaranjani.l, Nancy Evanjalin.s, pavithra.v, sathish kumar.s, and giri.s.
+Sivaranjani.L, Nancy Evanjalin.S, Pavithra.V, Sathish kumar.S, and Giri.S.
 
 This project is for learning purposes as part of the Google Cloud Generative AI Engineer program on SkillWallet.
