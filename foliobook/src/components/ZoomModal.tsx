@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import React from "react";
+import { X, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 
 interface ZoomModalProps {
   isOpen: boolean;
@@ -15,6 +15,36 @@ export const ZoomModal: React.FC<ZoomModalProps> = ({
   caption,
 }) => {
   const [scale, setScale] = React.useState<number>(1);
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLButtonElement>("button")?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || !dialog) return;
+      const buttons = Array.from(
+        dialog.querySelectorAll<HTMLButtonElement>("button"),
+      );
+      const first = buttons[0],
+        last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKey);
+      previous?.focus();
+    };
+  }, [isOpen]);
 
   if (!isOpen || !imageSrc) return null;
 
@@ -24,6 +54,10 @@ export const ZoomModal: React.FC<ZoomModalProps> = ({
 
   return (
     <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Manga panel zoom"
       onClick={onClose}
       className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-between p-4 select-none animate-in fade-in duration-200"
     >
@@ -33,7 +67,7 @@ export const ZoomModal: React.FC<ZoomModalProps> = ({
         className="w-full max-w-3xl flex items-center justify-between px-4 py-3 bg-stone-900/90 rounded-xl border border-stone-800"
       >
         <span className="text-xs font-manga-tech uppercase tracking-wider text-amber-500 font-bold truncate">
-          {caption || 'Manga Panel Inspection'}
+          {caption || "Manga Panel Inspection"}
         </span>
 
         <div className="flex items-center gap-2">
@@ -70,14 +104,17 @@ export const ZoomModal: React.FC<ZoomModalProps> = ({
       </div>
 
       {/* Main Image Stage */}
-      <div 
+      <div
         onClick={(e) => e.stopPropagation()}
         className="flex-1 w-full max-w-5xl flex items-center justify-center overflow-auto p-4"
       >
         <img
           src={imageSrc}
-          alt={caption || 'Zoomed manga panel'}
-          style={{ transform: `scale(${scale})`, transition: 'transform 0.2s ease-out' }}
+          alt={caption || "Zoomed manga panel"}
+          style={{
+            transform: `scale(${scale})`,
+            transition: "transform 0.2s ease-out",
+          }}
           className="max-h-[80vh] max-w-full object-contain rounded-lg shadow-2xl border border-stone-800"
         />
       </div>
