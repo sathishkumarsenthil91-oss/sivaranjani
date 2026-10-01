@@ -63,6 +63,11 @@ export default function App() {
   const [scrollMode, setScrollMode] = useState(false);
   const [bw, setBw] = useState(false);
   const [direction, setDirection] = useState(1);
+  const [turningPage, setTurningPage] = useState<{
+    chapter: number;
+    page: number;
+    direction: number;
+  } | null>(null);
   const [zoom, setZoom] = useState<{ src: string; caption?: string } | null>(
     null,
   );
@@ -83,10 +88,12 @@ export default function App() {
     } catch {}
   }, [progress, bookmarks, started, dark]);
   const home = useCallback(() => {
+    setTurningPage(null);
     setReader(false);
     window.scrollTo({ top: 0, behavior: "instant" });
   }, []);
   const open = useCallback((ch: number, p = 1) => {
+    setTurningPage(null);
     setProgress({
       chapter: ch,
       page: Math.max(1, Math.min(p, ALL_CHAPTERS_PAGES[ch].length)),
@@ -97,25 +104,37 @@ export default function App() {
     setDirection(1);
     window.scrollTo({ top: 0, behavior: "instant" });
   }, []);
-  const turn = useCallback((step: number) => {
-    setDirection(step);
-    setProgress((current) => {
-      const count = ALL_CHAPTERS_PAGES[current.chapter].length;
-      if (current.page + step < 1)
-        return current.chapter > 1
-          ? {
-              chapter: current.chapter - 1,
-              page: ALL_CHAPTERS_PAGES[current.chapter - 1].length,
-            }
-          : current;
-      if (current.page + step > count)
-        return current.chapter < CHAPTER_LIST.length
-          ? { chapter: current.chapter + 1, page: 1 }
-          : current;
-      return { ...current, page: current.page + step };
-    });
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, []);
+  const turn = useCallback(
+    (step: number) => {
+      const next = (() => {
+        const current = progress;
+        const count = ALL_CHAPTERS_PAGES[current.chapter].length;
+        if (current.page + step < 1)
+          return current.chapter > 1
+            ? {
+                chapter: current.chapter - 1,
+                page: ALL_CHAPTERS_PAGES[current.chapter - 1].length,
+              }
+            : current;
+        if (current.page + step > count)
+          return current.chapter < CHAPTER_LIST.length
+            ? { chapter: current.chapter + 1, page: 1 }
+            : current;
+        return { ...current, page: current.page + step };
+      })();
+      if (next === progress) return;
+      setTurningPage({ ...progress, direction: step });
+      setDirection(step);
+      setProgress(next);
+      window.scrollTo({ top: 0, behavior: "instant" });
+    },
+    [progress],
+  );
+  useEffect(() => {
+    if (!turningPage) return;
+    const timeout = window.setTimeout(() => setTurningPage(null), 700);
+    return () => window.clearTimeout(timeout);
+  }, [turningPage]);
   const bookmark = useCallback(
     () =>
       setBookmarks((items) =>
@@ -184,6 +203,7 @@ export default function App() {
     return () => observer.disconnect();
   }, [reader, scrollMode, chapter]);
   const changeMode = (scroll: boolean) => {
+    setTurningPage(null);
     setScrollMode(scroll);
     if (scroll)
       requestAnimationFrame(() =>
@@ -253,6 +273,7 @@ export default function App() {
                     A city caught in yesterday.
                     <br />A boy who remembers tomorrow.
                   </p>
+                  <p className="story-subtitle">{MANGA_STORY.subtitle}</p>
                   <p className="cover-description">
                     An ancient vault. An endless sunset. Step into Aathirai with
                     Ilan and uncover the mystery of the seven Sun Wheels.
@@ -669,6 +690,30 @@ export default function App() {
                     isBlackAndWhiteMode={bw}
                     onZoom={zoomPanel}
                   />
+                </div>
+              )}
+              {!scrollMode && turningPage && (
+                <div
+                  key={`turn-${turningPage.chapter}-${turningPage.page}`}
+                  className={`book-turn-sheet ${turningPage.direction > 0 ? "sheet-forward" : "sheet-back"}`}
+                  aria-hidden="true"
+                  inert
+                  onAnimationEnd={() => setTurningPage(null)}
+                >
+                  <div className="book-leaf">
+                    <MangaPage
+                      page={
+                        ALL_CHAPTERS_PAGES[turningPage.chapter][
+                          turningPage.page - 1
+                        ]
+                      }
+                      totalPages={
+                        ALL_CHAPTERS_PAGES[turningPage.chapter].length
+                      }
+                      background={dark ? "dark" : "light"}
+                      isBlackAndWhiteMode={bw}
+                    />
+                  </div>
                 </div>
               )}
             </div>

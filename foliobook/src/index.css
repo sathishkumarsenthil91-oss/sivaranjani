@@ -1442,3 +1442,101 @@ h2 > span {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+.story-subtitle {
+  font-family: "Comic Neue", serif;
+  font-size: 17px;
+  font-style: italic;
+  line-height: 1.5;
+  margin: 15px 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--accent);
+}
+.book-stage {
+  position: relative;
+}
+.book-turn-sheet {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 3;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+.book-turn-sheet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  max-width: 850px;
+  margin: auto;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 65%, #22211e60);
+  animation: page-shadow 0.65s ease-in-out both;
+}
+.sheet-forward {
+  transform-origin: left center;
+  animation: sheet-forward 0.65s cubic-bezier(0.3, 0.05, 0.25, 1) both;
+}
+.sheet-back {
+  transform-origin: right center;
+  animation: sheet-back 0.65s cubic-bezier(0.3, 0.05, 0.25, 1) both;
+}
+.turn-forward {
+  animation: page-reveal 0.65s ease-out both;
+  transform-origin: left center;
+}
+.turn-back {
+  animation: page-reveal 0.65s ease-out both;
+  transform-origin: right center;
+}
+@keyframes sheet-forward {
+  0% {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotateY(-110deg);
+    opacity: 0;
+  }
+}
+@keyframes sheet-back {
+  0% {
+    transform: rotateY(0deg);
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotateY(110deg);
+    opacity: 0;
+  }
+}
+@keyframes page-reveal {
+  from {
+    filter: brightness(0.7);
+    transform: rotateY(4deg);
+  }
+  to {
+    filter: brightness(1);
+    transform: rotateY(0deg);
+  }
+}
+@keyframes page-shadow {
+  from {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .book-turn-sheet {
+    display: none;
+  }
+}
