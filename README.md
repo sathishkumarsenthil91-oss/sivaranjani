@@ -12,7 +12,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. Run `npm run lint` for the TypeScript check and `npm run build` for a production build. Deploy the `foliobook` directory with Vite; output directory: `dist`.
+Open `https://foliobook-lyart.vercel.app/`Run `npm run lint` for the TypeScript check and `npm run build` for a production build. Deploy the `foliobook` directory with Vite; output directory: `dist`.
 
 ## Reading
 
